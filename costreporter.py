@@ -226,7 +226,7 @@ def get_reservation_coverage(a, s, rlist, start, end, dims, tags, granularity="M
         traceback.print_exc()
     return covs
 
-def get_costs(a, s, rlist, start, end, dims, tags, granularity="MONTHLY"):
+def get_costs(a, s, rlist, start, end, dims, tags, granularity="MONTHLY", no_zeroes=False):
     costs = []
 
     groupbys = []
@@ -276,7 +276,12 @@ def get_costs(a, s, rlist, start, end, dims, tags, granularity="MONTHLY"):
                         "unblended_cost": group['Metrics']['UnblendedCost'],
                         "usage_quantity": group['Metrics']['UsageQuantity']
                     }
-                    costs.append(cost)
+                    #print type(cost['unblended_cost']['Amount'])
+                    if no_zeroes == True:
+                        if float(cost['unblended_cost']['Amount']) > 0.01:
+                            costs.append(cost)
+                    else:
+                        costs.append(cost)
     except:
         e = sys.exc_info()
         print("ERROR: exception region=%s, error=%s" %(r, str(e)))
@@ -412,7 +417,7 @@ def print_cost_results(costs, use_json=False, use_csv=False, start=None, end=Non
         flat_costs = []
         for cost in costs:
             flat_costs.append(flatten(cost))
-
+        
         # print headers
         #    print(
         csv_writer = csv.DictWriter(sys.stdout, flat_costs[0].keys(), delimiter=",")
@@ -460,7 +465,8 @@ def print_usage():
            "        -g --tag <tag name> - Group by tag name\n"
            "                (list of names in format Tag1,Tag2,...,TagN).\n"
            "        -i --interval <interval> - Dumps stats at <interval> granularity.\n"
-           "                Valid values are MONTHLY (default) and DAILY.\n")
+           "                Valid values are MONTHLY (default) and DAILY.\n"
+           "        -e --no-zeroes - Exclude items that have effectively zero cost.\n")
      print("    Options for 'recommend' command:\n\n"
            "        -l --lookback <lookback> - Lookback period for recommendations.\n"
            "                Valid values are SEVEN_DAYS, THIRTY_DAYS,\n"
@@ -489,12 +495,13 @@ def parse_options(argv):
     parser.add_argument("-i", "--interval", type=str, default="MONTHLY")
     parser.add_argument("-l", "--lookback", type=str, default="SIXTY_DAYS")
     parser.add_argument("-r", "--service", type=str, default="EC2")
+    parser.add_argument("-e", "--no-zeroes", action="store_true", default=False)
 
     args = parser.parse_args(argv)
     if (len(args.regions) == 0):
-        return args.profile, args.access_key, args.secret_key, [], args.timerange, args.json, args.csv, args.dimension, args.tag, args.interval, args.lookback, args.service
+        return args.profile, args.access_key, args.secret_key, [], args.timerange, args.json, args.csv, args.dimension, args.tag, args.interval, args.lookback, args.service, args.no_zeroes
     else:
-        return args.profile, args.access_key, args.secret_key, args.regions.split(','), args.timerange, args.json, args.csv, args.dimension, args.tag, args.interval, args.lookback, args.service
+        return args.profile, args.access_key, args.secret_key, args.regions.split(','), args.timerange, args.json, args.csv, args.dimension, args.tag, args.interval, args.lookback, args.service, args.no_zeroes
 
 
 def parse_args(argv):
@@ -507,13 +514,13 @@ def parse_args(argv):
 
     cmd = argv[1]
 
-    p, a, s, rList, t, j, c, d, g, i, l, r = parse_options(argv[2:])
+    p, a, s, rList, t, j, c, d, g, i, l, r, e = parse_options(argv[2:])
 
-    return cmd, p, a, s, rList, t, j, c, d, g, i, l, r
+    return cmd, p, a, s, rList, t, j, c, d, g, i, l, r, e
 
 
 if __name__ == "__main__":
-    cmd, p, a, s, rList, t, j, c, d, g, i, l, r = parse_args(sys.argv)
+    cmd, p, a, s, rList, t, j, c, d, g, i, l, r, e = parse_args(sys.argv)
 
     if cmd not in FC_COMMANDS.keys():
         print_usage()
@@ -612,7 +619,7 @@ if __name__ == "__main__":
         #ABBRV.update(abbrv)
 
         if cmd == "cost":
-            costs = get_costs(a, s, rList, start_time, end_time, d, g, i)
+            costs = get_costs(a, s, rList, start_time, end_time, d, g, i, e)
             print_cost_results(costs, j, c, start_time, end_time)
         elif cmd == "recommend":
             recs = get_reserve_instance_recs(a, s, r, l)
